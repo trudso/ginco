@@ -2,21 +2,25 @@ package main
 
 import (
 	"fmt"
-	"github.com/trudso/ginco/pkg/api"
-	"github.com/trudso/ginco/internal/serialization"
+	"strings"
+
+	"github.com/trudso/ginco/stages"
 )
 
 func main() {
-	file := api.MetaFile {
-		Models: []api.MetaModel{},
-	}
+	reader := strings.NewReader(`Models:
+	Test:
+		Fields:
+			IntField:
+				Type:
+					Name: int
+	`)
 
-	jsonSerializer := serialization.MetaFileJsonSerializer {}
-
-	data, err := jsonSerializer.Serialize( file )
+	yamlMetaFile := stages.YamlMetaFile{}
+	metafile, err := yamlMetaFile.Parse(reader)
 	if err != nil {
-		fmt.Println("error")
+		fmt.Printf("Error while parsing yaml file: %+v\n", err)
 	}
 
-	fmt.Printf("done: %+v\n", data)
+	fmt.Printf("Ginco out: %+v", metafile)
 }
