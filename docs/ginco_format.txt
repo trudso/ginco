@@ -1,0 +1,68 @@
+// -- roleplaying.ginco --
+package roleplaying {
+	@changeset
+	model Character {
+		fields {
+			@noChangeset
+			1= id uuid
+			?= name string
+			?= age number
+			1- type CharacterType
+			*= skills Skill
+    }
+	}
+
+	mode* Skill {
+		fields {
+			1= name string
+			?= description string
+		}
+	}
+
+	enumeration CharacterType {
+		literals {
+			player
+			boss
+			npc
+		}
+	}
+}
+
+// -- horror.ginco ( same directory as roleplaying.ginco ) ---
+@import roleplaying.ginco
+
+package horror {
+	@inherits roleplaying.Character
+	model Vampire {
+		fields {
+			1- clan Clan
+		}
+	}
+
+	enumeration Clan {
+		literals {
+			ventrue
+			tremere
+			nosferatu
+			brujah
+			assamite
+			lasombra
+			gangrel
+			toreador
+			malkavian
+		}
+	}
+}
+
+* different parsers per scope
+* every trait(@) has it's own parser
+* legends:
+	fields key:
+		Multiplicity:
+			? means Zero or one (default)
+			1 means Exactly one
+			* means Multiple
+	
+		Ownership
+			= means Composition
+			- means Aggregation

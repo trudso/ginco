@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	var generator stages.PocModelCodeGenerator
+	generator := stages.PocModelCodeGenerator{}
 	results, _ := generator.Generate(types.MetaModel{})
 	for _, result := range results {
 		file, err := os.Create(result.Path)

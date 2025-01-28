@@ -6,7 +6,7 @@ type PocModelCodeGenerator struct {}
 
 func (self PocModelCodeGenerator) Generate( model types.MetaModel) ([]CodeGeneratorResult, error) {
 	return []CodeGeneratorResult{
-		CodeGeneratorResult {
+		 {
 			Path: "PocTest.go",
 			Content: `package poc
 
