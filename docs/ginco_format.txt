@@ -12,7 +12,7 @@ package roleplaying {
     }
 	}
 
-	mode* Skill {
+	model Skill {
 		fields {
 			1= name string
 			?= description string
@@ -29,7 +29,7 @@ package roleplaying {
 }
 
 // -- horror.ginco ( same directory as roleplaying.ginco ) ---
-@import roleplaying.ginco
+import ./roleplaying.ginco
 
 package horror {
 	@inherits roleplaying.Character

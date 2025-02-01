@@ -2,25 +2,33 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/trudso/ginco/stages"
 )
 
 func main() {
-	reader := strings.NewReader(`Models:
-	Test:
-		Fields:
-			IntField:
-				Type:
-					Name: int
-	`)
+	reader := strings.NewReader(`
+	package roleplaying {
+		@changeset
+		model Character {
+			fields {
+				@noChangeset
+				1= id uuid
+				?= name string
+				?= age number
+				1- type CharacterType
+				*= skills Skill
+	    	}
+		}
+	}`)
 
-	yamlMetaFile := stages.YamlMetaFile{}
-	metafile, err := yamlMetaFile.Parse(reader)
+	parser := stages.GincoMetaFileParser{}
+	file, err := parser.Parse(reader)
 	if err != nil {
-		fmt.Printf("Error while parsing yaml file: %+v\n", err)
+		fmt.Fprintf(os.Stderr, "Unexpected error: %+v\n", err)
 	}
 
-	fmt.Printf("Ginco out: %+v", metafile)
+	fmt.Printf("Ginco out: %+v\n", file)
 }
