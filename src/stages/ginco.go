@@ -20,10 +20,13 @@ const (
 	PACKAGE      = "package"
 	TRAIT_SYMBOL = "@"
 	MODEL        = "model"
+	MODEL_FIELDS = "fields"
 )
 
 var ERR_IMPORT_NOT_SUPPORTED = errors.New("import keyword not supported yet")
 var ERR_UNEXPECTED_TOKEN = errors.New("Unexpected token")
+var ERR_TRAIT_NOT_DEFINED = errors.New("Trait not defined")
+var ERR_MODEL_NAME_NOT_DEFINED = errors.New("Model name not defined")
 
 type GincoMetaFileParser struct{}
 
@@ -37,13 +40,13 @@ package roleplaying {
 	model Character {
 		fields {
 			@noChangeset
-			1= id uuid
-			?= name string
-			?= age number
-			1- type CharacterType
-			*= skills Skill
+			=1 id uuid
+			=? name string
+			=? age number
+			-1 type CharacterType
+			=* skills Skill
+    	}
     }
-	}
 }
 */
 
@@ -83,50 +86,187 @@ func parsePackage(content string) (types.MetaPackage, string, error) {
 		Models: []types.MetaModel{},
 	}
 
-	scope := trim(content)
-	_, scope, err := popExpectedToken(scope, []string{PACKAGE})
+	trimmedContent := trim(content)
+	_, rest, err := popExpectedToken(trimmedContent, []string{PACKAGE})
 	if err != nil {
-		return pkg, scope, err
+		return pkg, rest, err
 	}
 
-	scope, restResult, err := popScope(scope)
+	pkgScope, rest, err := popScope(rest)
 
 	// traits and models
 	for {
-		tokenType, token, err := peekToken(scope)
+		tokenType, token, err := peekToken(pkgScope)
 		if err != nil {
-			return pkg, restResult, err
+			return pkg, rest, err
 		}
 
-		if tokenType == SCOPE_END {
+		if tokenType == SCOPE_END || tokenType == EOF {
 			break
 		}
 
 		switch token {
 		case TRAIT_SYMBOL:
-			_, scope, err := parseTrait(scope)
+			_, pkgScope, err = parseTrait(pkgScope)
 			if err != nil {
-				return pkg, scope, err
+				return pkg, pkgScope, err
 			}
 		case MODEL:
-			_, scope, err := parseModel(scope)
+			_, pkgScope, err = parseModel(pkgScope)
 			if err != nil {
-				return pkg, scope, err
+				return pkg, pkgScope, err
 			}
 		}
 	}
 
-	return pkg, restResult, nil
+	return pkg, rest, nil
 }
 
 func parseTrait(content string) (types.MetaTrait, string, error) {
 	trait := types.MetaTrait{}
-	return trait, content, fmt.Errorf("Traits not supported yet")
+	_, rest, err := popExpectedToken(content, []string{TRAIT_SYMBOL})
+	if err != nil {
+		return trait, rest, err
+	}
+
+	traitName, rest := popWord(rest)
+	if len(traitName) == 0 {
+		return trait, rest, ERR_TRAIT_NOT_DEFINED
+	}
+
+	trait.Name = traitName
+	return trait, rest, nil
 }
 
 func parseModel(content string) (types.MetaModel, string, error) {
 	model := types.MetaModel{}
-	return model, content, fmt.Errorf("Models not supported yet")
+	_, rest, err := popExpectedToken(content, []string{"model"})
+	if err != nil {
+		return model, rest, err
+	}
+
+	// get name
+	name, rest := popWord(rest)
+	if len(name) == 0 {
+		return model, rest, ERR_MODEL_NAME_NOT_DEFINED
+	}
+	model.Name = name
+
+	// get scope
+	scope, resultRest, err := popScope(rest)
+	if err != nil {
+		return model, rest, err
+	}
+
+	scopeRest := scope
+
+	for {
+		tokenType, token, err := peekToken(scopeRest)
+		if err != nil {
+			return model, resultRest, err
+		}
+
+		if tokenType == EOF || tokenType == SCOPE_END {
+			break
+		}
+
+		switch token {
+		case MODEL_FIELDS:
+			fields, modelRest, err := parseModelFields(scopeRest)
+			if err != nil {
+				return model, resultRest, err
+			}
+			model.Fields = append(model.Fields, fields...)
+			scopeRest = modelRest
+		default:
+			return model, resultRest, ERR_UNEXPECTED_TOKEN
+		}
+	}
+
+	return model, resultRest, nil
 }
 
-// --- token helper functions --- //
+/*
+	fields {
+		@noChangeset
+		=1 id uuid
+		=? name string
+		=? age number
+		-1 type CharacterType
+		=* skills Skill
+	}
+*/
+func parseModelFields(content string) ([]types.MetaModelField, string, error) {
+	fields := []types.MetaModelField{}
+	_, rest, err := popExpectedToken(content, []string{MODEL_FIELDS})
+	if err != nil {
+		return fields, rest, err
+	}
+	scope, resultRest, err := popScope(rest)
+	if err != nil {
+		return fields, resultRest, err
+	}
+
+	//
+	scopeRest := scope
+	fieldTraits := []types.MetaTrait{}
+	for {
+		tokenType, _, err := peekToken(scopeRest)
+		if err != nil {
+			return fields, rest, err
+		}
+
+		if tokenType == EOF || tokenType == SCOPE_END {
+			break
+		}
+
+		switch tokenType {
+		case TRAIT:
+			trait, newRest, err := parseTrait(scopeRest)
+			if err != nil {
+				return fields, resultRest, err
+			}
+			scopeRest = newRest
+			fieldTraits = append(fieldTraits, trait)
+		default:
+			field, newRest, err := parseModelField(scopeRest)
+			if err != nil {
+				return fields, resultRest, err
+			}
+			field.Traits = append(field.Traits, fieldTraits...)
+			fields = append(fields, field)
+			fieldTraits = []types.MetaTrait{} // reset traits
+			scopeRest = newRest
+		}
+	}
+
+	return fields, resultRest, nil
+}
+
+func parseModelField(content string) (types.MetaModelField, string, error) {
+	field := types.MetaModelField{}
+
+	// kind
+	kind, rest, err := popExpectedToken(content, []string{COMPOSITION, AGGREGATION})
+	if err != nil {
+		return field, rest, err
+	}
+	field.Kind = kind
+
+	// cardinality
+	cardinality, rest, err := popExpectedToken(rest, []string{COLLECTION, NULLABLE, NON_NULL})
+	if err != nil {
+		return field, rest, err
+	}
+	field.Cardinality = cardinality
+
+	// field name
+	name, rest := popWord(rest)
+	field.Name = name
+
+	// type
+	typeName, rest := popLine(rest)
+	field.Type.Name = typeName
+
+	return field, rest, nil
+}

@@ -25,6 +25,7 @@ type MetaModelField struct {
 	Kind        string
 	Cardinality string
 	Nullable    bool
+	Traits      []MetaTrait
 }
 
 type MetaType struct {

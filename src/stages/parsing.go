@@ -2,6 +2,7 @@ package stages
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
@@ -80,7 +81,9 @@ func popExpectedToken(content string, expectations []string) (string, string, er
 			return expectation, trim(trimmedContent[len(expectation):]), nil
 		}
 	}
-	return "", trimmedContent, ERR_EXPECTED_ELEMENT_NOT_FOUND
+
+	_, foundToken, _ := peekToken(trimmedContent)
+	return "", trimmedContent, errors.Join(ERR_EXPECTED_ELEMENT_NOT_FOUND, fmt.Errorf("Expected: [%q], but found %q", expectations, foundToken))
 }
 
 func peekToken(content string) (int, string, error) {

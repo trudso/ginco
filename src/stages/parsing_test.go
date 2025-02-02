@@ -1,6 +1,7 @@
 package stages
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -55,14 +56,14 @@ func TestPopScope(t *testing.T) {
 
 func TestPopExpectedToken(t *testing.T) {
 	testCases := []struct {
-		content       string
-		expectations  []string
-		expectedToken string
-		expectedRest  string
-		expectedError error
+		content               string
+		expectations          []string
+		expectedToken         string
+		expectedRest          string
+		expectedErrorContains []string
 	}{
-		{"", []string{"@", "package", "model"}, "", "", ERR_EXPECTED_ELEMENT_NOT_FOUND},
-		{"some content", []string{"@", "package", "model"}, "", "some content", ERR_EXPECTED_ELEMENT_NOT_FOUND},
+		{"", []string{"@", "package", "model"}, "", "", []string{"expected", "found"}},
+		{"some content", []string{"@", "package", "model"}, "", "some content", []string{"@", "package", "model", "found"}},
 		{"model TestModel {", []string{"model", "package"}, "model", "TestModel {", nil},
 		{" fields {", []string{"fields"}, "fields", "{", nil},
 		{"	=1 Name string", []string{"@", "-", "="}, "=", "1 Name string", nil},
@@ -71,12 +72,12 @@ func TestPopExpectedToken(t *testing.T) {
 
 	for _, tc := range testCases {
 		token, rest, err := popExpectedToken(tc.content, tc.expectations)
-
-		if token != tc.expectedToken || rest != tc.expectedRest || err != tc.expectedError {
-			t.Errorf("popScope(%q, %q) = %q, %q, %q; expected %q, %q, %q",
+		assertErrorContains(t, err, tc.expectedErrorContains)
+		if token != tc.expectedToken || rest != tc.expectedRest {
+			t.Errorf("popExtectedToken(%q, %q) = %q, %q, %q; expected %q, %q",
 				tc.content, tc.expectations,
 				token, rest, err,
-				tc.expectedToken, tc.expectedRest, tc.expectedError)
+				tc.expectedToken, tc.expectedRest)
 		}
 	}
 }
@@ -144,6 +145,22 @@ func TestPeekToken(t *testing.T) {
 		if tokenType != tc.expectedTokenType || token != tc.expectedToken || err != tc.expectedError {
 			t.Errorf("peekToken(%q) = %q, %q, %q; expected %q, %q, %q", tc.content, tokenType, token, err,
 				tc.expectedTokenType, tc.expectedToken, tc.expectedError)
+		}
+	}
+}
+
+func assertErrorContains(t *testing.T, err error, expectedElements []string) {
+	if err != nil && len(expectedElements) == 0 {
+		t.Errorf("expected no error but got: %q", err)
+	}
+
+	if err == nil && len(expectedElements) > 0 {
+		t.Errorf("expected error to contain %q but got no error", expectedElements)
+	}
+
+	for _, e := range expectedElements {
+		if !strings.Contains(err.Error(), e) {
+			t.Errorf("error: %q did not contain expected element: %q", err, e)
 		}
 	}
 }
