@@ -35,238 +35,231 @@ func (self GincoMetaFileParser) Parse(reader io.Reader) (types.MetaFile, error) 
 }
 
 /*
-package roleplaying {
-	@changeset
-	model Character {
-		fields {
-			@noChangeset
-			=1 id uuid
-			=? name string
-			=? age number
-			-1 type CharacterType
-			=* skills Skill
-    	}
-    }
-}
+	package roleplaying {
+		@changeset
+		model Character {
+			fields {
+				@noChangeset
+				=1 id uuid
+				=? name string
+				=? age number
+				-1 type CharacterType
+				=* skills Skill
+	    	}
+	    }
+	}
 */
-
-func parseFile(content string) (types.MetaFile, error) {
-	file := types.MetaFile{
-		Packages: []types.MetaPackage{},
-	}
-	rest := content
-	for {
-		tokenType, token, err := peekToken(rest)
-		if err != nil {
-			return file, err
-		}
-
-		if tokenType == EOF {
-			return file, nil
-		}
-
-		switch token {
-		case IMPORT:
-			return file, ERR_IMPORT_NOT_SUPPORTED
-		case PACKAGE:
-			pkg, newRest, err := parsePackage(rest)
-			if err != nil {
-				return file, err
-			}
-			file.Packages = append(file.Packages, pkg)
-			rest = newRest
-		default:
-			return file, fmt.Errorf("Unexpected token %q", token)
-		}
-	}
-}
-
-func parsePackage(content string) (types.MetaPackage, string, error) {
-	pkg := types.MetaPackage{
-		Models: []types.MetaModel{},
-	}
-
-	trimmedContent := trim(content)
-	_, rest, err := popExpectedToken(trimmedContent, []string{PACKAGE})
+func parsePackage(content string, idx int) (types.MetaPackage, int, error) {
+	pkg := types.MetaPackage {}
+	_, nextIdx, err := popExpectedToken(content, idx, TT_IDENTIFIER, PACKAGE) 
 	if err != nil {
-		return pkg, rest, err
+		return pkg, idx, err
 	}
 
-	pkgScope, rest, err := popScope(rest)
-
-	// traits and models
-	for {
-		tokenType, token, err := peekToken(pkgScope)
-		if err != nil {
-			return pkg, rest, err
-		}
-
-		if tokenType == SCOPE_END || tokenType == EOF {
-			break
-		}
-
-		switch token {
-		case TRAIT_SYMBOL:
-			_, pkgScope, err = parseTrait(pkgScope)
-			if err != nil {
-				return pkg, pkgScope, err
-			}
-		case MODEL:
-			_, pkgScope, err = parseModel(pkgScope)
-			if err != nil {
-				return pkg, pkgScope, err
-			}
-		}
-	}
-
-	return pkg, rest, nil
-}
-
-func parseTrait(content string) (types.MetaTrait, string, error) {
-	trait := types.MetaTrait{}
-	_, rest, err := popExpectedToken(content, []string{TRAIT_SYMBOL})
+	// name
+	nameToken, nextIdx, err := popIdentifier(content, nextIdx)
 	if err != nil {
-		return trait, rest, err
+		return pkg, nextIdx, err
 	}
 
-	traitName, rest := popWord(rest)
-	if len(traitName) == 0 {
-		return trait, rest, ERR_TRAIT_NOT_DEFINED
+	pkg.Name = nameToken.Value
+
+	// content
+	scope, nextIdx, err := popScope(content, nextIdx)
+	if err != nil {
+		return pkg, nextIdx, err
 	}
 
-	trait.Name = traitName
-	return trait, rest, nil
+	scopeIdx := 0
+	var trait *types.MetaTrait = nil
+	for {
+		token, _, err := popToken( scope.Value, scopeIdx )
+		if err != nil {
+			return pkg, scopeIdx, err
+		}
+
+		if token.Type == TT_EOF {
+			return pkg, nextIdx, nil
+		}
+
+		if token.Type == TT_SYMBOL && token.Value == TRAIT_SYMBOL {
+			//var newTrait types.MetaTrait
+			newTrait, nextIdx, err := parseTrait(scope.Value, scopeIdx)
+			trait = &newTrait
+			if err != nil {
+				return pkg, scopeIdx, err
+			}
+			scopeIdx = nextIdx
+		}
+
+		if token.Type == TT_IDENTIFIER && token.Value == MODEL {
+			model, nextIdx, err := parseModel(scope.Value, scopeIdx)
+			if err != nil {
+				return pkg, scopeIdx, err
+			}
+			if trait != nil {
+				model.Traits = append( model.Traits, *trait)
+				trait = nil
+			}
+
+			pkg.Models = append( pkg.Models, model )
+			scopeIdx = nextIdx
+		}
+	}
 }
 
-func parseModel(content string) (types.MetaModel, string, error) {
+func parseModel(content string, idx int) (types.MetaModel, int, error) {
 	model := types.MetaModel{}
-	_, rest, err := popExpectedToken(content, []string{"model"})
+	token, nextIdx, err := popIdentifier(content, idx)
 	if err != nil {
-		return model, rest, err
+		return model, idx, err
 	}
 
-	// get name
-	name, rest := popWord(rest)
-	if len(name) == 0 {
-		return model, rest, ERR_MODEL_NAME_NOT_DEFINED
-	}
-	model.Name = name
-
-	// get scope
-	scope, resultRest, err := popScope(rest)
-	if err != nil {
-		return model, rest, err
+	if token.Value != MODEL {
+		return model, idx, formatParsingError(fmt.Sprintf("Expected model keyword, but found %s", token.Value), content, idx)
 	}
 
-	scopeRest := scope
+	token, nextIdx, err = popIdentifier(content, nextIdx)
+	model.Name = token.Value
 
-	for {
-		tokenType, token, err := peekToken(scopeRest)
+	token, nextIdx, err = popToken(content, nextIdx)
+	if token.Type == TT_SCOPE {
+		scopeContent := token.Value
+		token, _, err := popToken(scopeContent, 0)
 		if err != nil {
-			return model, resultRest, err
+			return model, nextIdx, err
 		}
 
-		if tokenType == EOF || tokenType == SCOPE_END {
-			break
-		}
-
-		switch token {
-		case MODEL_FIELDS:
-			fields, modelRest, err := parseModelFields(scopeRest)
+		if token.Type == TT_IDENTIFIER && token.Value == MODEL_FIELDS {
+			fields, _, err := parseModelFields(scopeContent, 0)
 			if err != nil {
-				return model, resultRest, err
+				return model, nextIdx, err
 			}
-			model.Fields = append(model.Fields, fields...)
-			scopeRest = modelRest
-		default:
-			return model, resultRest, ERR_UNEXPECTED_TOKEN
+
+			model.Fields = fields
 		}
 	}
 
-	return model, resultRest, nil
+	return model, nextIdx, nil
 }
 
-/*
-	fields {
-		@noChangeset
-		=1 id uuid
-		=? name string
-		=? age number
-		-1 type CharacterType
-		=* skills Skill
+func parseModelFields(content string, idx int) ([]types.MetaModelField, int, error) {
+	_, nextIdx, err := popExpectedToken(content, idx, TT_IDENTIFIER, MODEL_FIELDS)
+	if err != nil {
+		return nil, nextIdx, err
 	}
-*/
-func parseModelFields(content string) ([]types.MetaModelField, string, error) {
+
+	scope, nextIdx, err := popScope(content, nextIdx)
+	if err != nil {
+		return nil, nextIdx, err
+	}
+
 	fields := []types.MetaModelField{}
-	_, rest, err := popExpectedToken(content, []string{MODEL_FIELDS})
-	if err != nil {
-		return fields, rest, err
-	}
-	scope, resultRest, err := popScope(rest)
-	if err != nil {
-		return fields, resultRest, err
-	}
-
-	//
-	scopeRest := scope
-	fieldTraits := []types.MetaTrait{}
-	for {
-		tokenType, _, err := peekToken(scopeRest)
+	scopeIdx := 0
+	for !isEOF(scope.Value, scopeIdx) {
+		var field types.MetaModelField
+		field, scopeIdx, err = parseModelField(scope.Value, scopeIdx)
 		if err != nil {
-			return fields, rest, err
+			return fields, scopeIdx, err
 		}
 
-		if tokenType == EOF || tokenType == SCOPE_END {
-			break
-		}
-
-		switch tokenType {
-		case TRAIT:
-			trait, newRest, err := parseTrait(scopeRest)
-			if err != nil {
-				return fields, resultRest, err
-			}
-			scopeRest = newRest
-			fieldTraits = append(fieldTraits, trait)
-		default:
-			field, newRest, err := parseModelField(scopeRest)
-			if err != nil {
-				return fields, resultRest, err
-			}
-			field.Traits = append(field.Traits, fieldTraits...)
-			fields = append(fields, field)
-			fieldTraits = []types.MetaTrait{} // reset traits
-			scopeRest = newRest
-		}
+		fields = append(fields, field)
 	}
 
-	return fields, resultRest, nil
+	return fields, scopeIdx, nil
 }
 
-func parseModelField(content string) (types.MetaModelField, string, error) {
+func parseTrait(content string, idx int) (types.MetaTrait, int, error) {
+	trait := types.MetaTrait{}
+	symbolToken, nextIdx, err := popSymbol(content, idx)
+	if err != nil {
+		return trait, nextIdx, err
+	}
+
+	if symbolToken.Value != TRAIT_SYMBOL {
+		return trait, idx, formatParsingError("No trait found", content, symbolToken.Position)
+	}
+
+	identifier, nextIdx, err := popIdentifier(content, nextIdx)
+	if err != nil {
+		return trait, nextIdx, err
+	}
+
+	trait.Name = identifier.Value
+	return trait, nextIdx, nil
+}
+
+func parseModelField(content string, idx int) (types.MetaModelField, int, error) {
 	field := types.MetaModelField{}
+	curIdx := idx
 
-	// kind
-	kind, rest, err := popExpectedToken(content, []string{COMPOSITION, AGGREGATION})
-	if err != nil {
-		return field, rest, err
+	for {
+		symbolToken, nextIdx, err := popSymbol(content, curIdx)
+		if err != nil {
+			return field, curIdx, err
+		}
+
+		if symbolToken.Value == TRAIT_SYMBOL {
+			trait, nextIdx, err := parseTrait(content, curIdx)
+			if err != nil {
+				return field, nextIdx, err
+			}
+
+			field.Traits = append(field.Traits, trait)
+			curIdx = nextIdx
+		} else if isOwnershipSymbol(symbolToken.Value) {
+			switch symbolToken.Value {
+			case COMPOSITION:
+				field.Ownership = types.Composition
+			case AGGREGATION:
+				field.Ownership = types.Aggregation
+			}
+
+			multiplicy, nextIdx, err := popSingleRune(content, nextIdx)
+			if err != nil {
+				return field, nextIdx, err
+			}
+			switch multiplicy.Value {
+			case NULLABLE:
+				field.Cardinality = types.ZeroOrOne
+			case NON_NULL:
+				field.Cardinality = types.One
+			case COLLECTION:
+				field.Cardinality = types.Collection
+			}
+
+			name, nextIdx, err := popIdentifier(content, nextIdx)
+			if err != nil {
+				return field, nextIdx, err
+			}
+
+			field.Name = name.Value
+
+			metaType, nextIdx, err := parseMetaType(content, nextIdx)
+			if err != nil {
+				return field, nextIdx, err
+			}
+
+			field.Type = metaType
+			return field, nextIdx, err
+		} else {
+			return field, curIdx, formatParsingError(fmt.Sprintf("Unexpected symbol %s", symbolToken.Value), content, curIdx)
+		}
 	}
-	field.Kind = kind
+}
 
-	// cardinality
-	cardinality, rest, err := popExpectedToken(rest, []string{COLLECTION, NULLABLE, NON_NULL})
+func parseMetaType(content string, idx int) (types.MetaType, int, error) {
+	metaType := types.MetaType{}
+
+	token, nextIdx, err := popIdentifier(content, idx)
 	if err != nil {
-		return field, rest, err
+		return metaType, idx, err
 	}
-	field.Cardinality = cardinality
 
-	// field name
-	name, rest := popWord(rest)
-	field.Name = name
+	metaType.Name = token.Value
+	return metaType, nextIdx, nil
+}
 
-	// type
-	typeName, rest := popLine(rest)
-	field.Type.Name = typeName
-
-	return field, rest, nil
+func isOwnershipSymbol(symbol string) bool {
+	return symbol == COMPOSITION || symbol == AGGREGATION
 }

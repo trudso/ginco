@@ -2,13 +2,13 @@ package stages
 
 import "github.com/trudso/ginco/types"
 
-type PocModelCodeGenerator struct {}
+type PocModelCodeGenerator struct{}
 
-func (self PocModelCodeGenerator) Generate( model types.MetaModel) ([]CodeGeneratorResult, error) {
-	return []CodeGeneratorResult{
-		 {
+func (self PocModelCodeGenerator) Generate(model types.MetaModel) ([]ModelEmitterResult, error) {
+	return []ModelEmitterResult{
+		{
 			Path: "PocTest.go",
-			Content: `package poc
+			Content: `package main
 
 import "fmt"
 

@@ -1,5 +1,3 @@
-//go:build ignore
-
 package main
 
 import (
@@ -21,9 +19,8 @@ func main() {
 		}
 		defer file.Close()
 
-		fmt.Fprintf( file, result.Content )
+		fmt.Fprintf(file, result.Content)
 
 		fmt.Println("Done")
 	}
 }
-
