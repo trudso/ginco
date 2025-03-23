@@ -1,7 +1,6 @@
 package stages
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/trudso/ginco/types"
@@ -22,11 +21,6 @@ const (
 	MODEL_FIELDS = "fields"
 )
 
-var ERR_IMPORT_NOT_SUPPORTED = errors.New("import keyword not supported yet")
-var ERR_UNEXPECTED_TOKEN = errors.New("Unexpected token")
-var ERR_TRAIT_NOT_DEFINED = errors.New("Trait not defined")
-var ERR_MODEL_NAME_NOT_DEFINED = errors.New("Model name not defined")
-
 /*
 		model Character {
 			fields {
@@ -42,13 +36,9 @@ var ERR_MODEL_NAME_NOT_DEFINED = errors.New("Model name not defined")
 */
 func parseModel(content string, idx int) (types.MetaModel, int, error) {
 	model := types.MetaModel{}
-	token, nextIdx, err := popIdentifier(content, idx)
+	token, nextIdx, err := popExpectedToken( content, idx, TT_IDENTIFIER, MODEL )
 	if err != nil {
 		return model, idx, err
-	}
-
-	if token.Value != MODEL {
-		return model, idx, formatParsingError(fmt.Sprintf("Expected model keyword, but found %s", token.Value), content, idx)
 	}
 
 	token, nextIdx, err = popIdentifier(content, nextIdx)

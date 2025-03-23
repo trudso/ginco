@@ -49,3 +49,9 @@ type MetaType struct {
 	Package string
 	Name    string
 }
+
+type MetaEnum struct {
+	Name     string
+	Traits   []MetaTrait
+	Literals []string
+}

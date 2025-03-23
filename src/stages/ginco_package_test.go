@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-
 func TestParseSimplePackage(t *testing.T) {
 	inputTest := `package roleplaying {
 		@changeset

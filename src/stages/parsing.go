@@ -28,7 +28,7 @@ type Token struct {
 	Value    string
 }
 
-func isEOF( content string, startIdx int ) bool {
+func isEOF(content string, startIdx int) bool {
 	return firstValidTokenIndex(content, startIdx) == -1
 }
 
@@ -87,7 +87,7 @@ func popSymbol(content string, startIdx int) (Token, int, error) {
 
 // popSingleRune returns the first valid rune
 // that is not a scope
-func popSingleRune(content string, startIdx int ) (Token, int, error) {
+func popSingleRune(content string, startIdx int) (Token, int, error) {
 	realStartIdx := firstValidTokenIndex(content, startIdx)
 
 	if realStartIdx == -1 {
@@ -107,9 +107,9 @@ func popSingleRune(content string, startIdx int ) (Token, int, error) {
 }
 
 func popExpectedToken(content string, startIdx int, tokenType TokenType, value string) (Token, int, error) {
-	token, nextIdx, err := popToken( content, startIdx)
+	token, nextIdx, err := popToken(content, startIdx)
 	if err != nil {
-		return token, nextIdx, err 
+		return token, nextIdx, err
 	}
 
 	if token.Type != tokenType {
@@ -274,8 +274,14 @@ func getSubString(content string, startIdx, endIdx int) string {
 	return content[startIdx:endIdx]
 }
 
-func formatParsingError(errorMessage, content string, startIdx int) error {
-	startIdx = max(0, min(max(startIdx, 0), len(content)-1))
-	endIdx := min(20, len(content)-startIdx)
-	return fmt.Errorf("%s at %d: %s", errorMessage, startIdx, content[startIdx:endIdx])
+func formatParsingError(errorMessage, content string, atIdx int) error {
+	// trim idx
+	idx := max(0, min(max(atIdx, 0), len(content)-1))
+
+	contentToIdx := content[:idx]
+	line := strings.Count(contentToIdx, "\n") + 1
+	lineStartIdx := strings.LastIndex(contentToIdx, "\n")
+
+	endIdx := idx + min(20, len(content)-idx)
+	return fmt.Errorf("[%d:%d] ...%s: %s", line, idx-lineStartIdx, content[idx:endIdx], errorMessage)
 }
