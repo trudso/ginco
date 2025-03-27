@@ -14,13 +14,24 @@ func TestParseEnum(t *testing.T) {
 		expectedNextIds     int
 		expectedErrorValues []string
 	}{
+		{`enum {}`, "", nil, 5, []string{"[1:6]", "No identifier found"}},
+		{`enum SomeEnum {
+        literals {}
+    }`, "SomeEnum", []string{}, 41, []string{}},
 		{`enum CharacterType {
-				literals {
-					warrior
-					rogue
-					wizard
-				}
-			}`, "CharacterType", []string{"warrior", "rogue", "wizard"}, 82, nil},
+        literals {
+            warrior
+            rogue
+            wizard
+        }
+    }`, "CharacterType", []string{"warrior", "rogue", "wizard"}, 112, []string{}},
+		{`enum SomeEnum {
+        literals {
+            a
+            b
+            a
+        }
+    }`, "SomeEnum", []string{}, 92, []string{"duplicate literal found"}},
 	}
 
 	for _, tc := range testCases {
@@ -36,5 +47,4 @@ func TestParseEnum(t *testing.T) {
 			assert.Contains(t, tc.expectedLiterals, literal)
 		}
 	}
-
 }

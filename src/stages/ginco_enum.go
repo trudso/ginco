@@ -1,6 +1,10 @@
 package stages
 
-import "github.com/trudso/ginco/types"
+import (
+	"slices"
+
+	"github.com/trudso/ginco/types"
+)
 
 const (
 	ENUM = "enum"
@@ -24,8 +28,11 @@ func parseEnum(content string, idx int) (types.MetaEnum, int, error) {
 	}
 
 	token, nextIdx, err = popIdentifier(content, nextIdx)
-	enum.Name = token.Value
+	if err != nil {
+		return enum, nextIdx, err
+	}
 
+	enum.Name = token.Value
 	token, nextIdx, err = popToken(content, nextIdx)
 	if token.Type == TT_SCOPE {
 		scopeContent := token.Value
@@ -68,8 +75,12 @@ func parseEnumLiterals(content string, idx int) ([]string, int, error) {
 			return literals, scopeIdx, err
 		}
 
+		if slices.Contains( literals, literalToken.Value ) {
+			return literals, nextIdx, formatParsingError("duplicate literal found", content, literalToken.Position)
+		}
+
 		literals = append(literals, literalToken.Value)
 	}
 
-	return literals, scopeIdx, nil
+	return literals, nextIdx, nil
 }
